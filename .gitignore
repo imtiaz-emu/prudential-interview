@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Django
+*.sqlite3
+*.log
+local_settings.py
+staticfiles/
+mediafiles/
+
+# Environment variables
+.env
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Docker
+*.override.yml
