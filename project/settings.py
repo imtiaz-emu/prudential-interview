@@ -174,6 +174,9 @@ CACHES = {
 # Gallery application settings
 # ---------------------------------------------------------------------------
 
+# Base URL for the upstream image provider.
+PICSUM_BASE_URL: str = _str('PICSUM_BASE_URL', 'https://picsum.photos')
+
 # Allowed named sizes and their pixel dimensions.
 IMAGE_SIZES = {
     'small': 200,
