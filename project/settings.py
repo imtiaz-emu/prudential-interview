@@ -190,6 +190,10 @@ IMAGE_DEFAULT_SIZE: str = _str('IMAGE_DEFAULT_SIZE', 'medium')
 # Number of images displayed per page (user-configurable via UI, this is the default).
 IMAGES_PER_PAGE: int = _int('IMAGES_PER_PAGE', 10)
 
+# Upper bound on image IDs served from the gallery.
+# picsum.photos has IDs 0–1084; staying at 1000 keeps all IDs valid.
+PICSUM_MAX_IMAGE_ID: int = _int('PICSUM_MAX_IMAGE_ID', 1000)
+
 # ---------------------------------------------------------------------------
 # Upstream (picsum.dev) resilience settings
 # ---------------------------------------------------------------------------

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Image {{ params.image_id }} — Detail{% endblock %}
+
+{% block content %}
+
+<div class="detail">
+
+  <div class="detail__image-wrapper">
+    <img
+      src="{{ item.url }}"
+      width="{{ item.width }}"
+      height="{{ item.height }}"
+      alt="Image {{ params.image_id }}"
+      class="detail__image"
+    >
+  </div>
+
+  <div class="detail__info">
+    <h2>Image #{{ params.image_id }}</h2>
+
+    <table class="detail__params">
+      <caption>Parameters used to generate this image</caption>
+      <tbody>
+        <tr>
+          <th scope="row">Image ID</th>
+          <td>{{ params.image_id }}</td>
+        </tr>
+        <tr>
+          <th scope="row">Size</th>
+          <td>{{ params.size|capfirst }}</td>
+        </tr>
+        <tr>
+          <th scope="row">Dimensions</th>
+          <td>{{ item.width }}&thinsp;&times;&thinsp;{{ item.height }} px</td>
+        </tr>
+        <tr>
+          <th scope="row">Grayscale</th>
+          <td>{{ params.grayscale|yesno:"Yes,No" }}</td>
+        </tr>
+        <tr>
+          <th scope="row">Blur</th>
+          <td>{% if params.blur > 0 %}{{ params.blur }} / 10{% else %}None{% endif %}</td>
+        </tr>
+        <tr>
+          <th scope="row">Source URL</th>
+          <td><code class="detail__url">{{ item.url }}</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <a class="detail__back" href="{{ gallery_url }}">&#8592; Back to gallery</a>
+  </div>
+
+</div>
+
+{% endblock %}

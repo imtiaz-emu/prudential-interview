@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Image Gallery — Page {{ gallery_page.page }}{% endblock %}
+
+{% block content %}
+
+<div class="gallery-controls">
+  <form class="filter-form" method="get" action="{% url 'gallery:index' %}">
+    <input type="hidden" name="page" value="1">
+
+    <label for="size">Size</label>
+    <select id="size" name="size">
+      {% for s in sizes %}
+        <option value="{{ s }}" {% if s == params.size %}selected{% endif %}>{{ s|capfirst }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="per_page">Per page</label>
+    <select id="per_page" name="per_page">
+      {% for n in per_page_options %}
+        <option value="{{ n }}" {% if n == params.per_page %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="blur">Blur (0–10)</label>
+    <input id="blur" type="number" name="blur" min="0" max="10" value="{{ params.blur }}">
+
+    <label class="checkbox-label">
+      <input type="checkbox" name="grayscale" value="1" {% if params.grayscale %}checked{% endif %}>
+      Grayscale
+    </label>
+
+    <button type="submit">Apply</button>
+  </form>
+</div>
+
+{% if gallery_page.items %}
+  <div class="gallery-grid" id="gallery-grid">
+    {% for item in gallery_page.items %}
+      <div class="gallery-card">
+        <a href="{% url 'gallery:detail' item.image_id %}?{{ filter_query }}">
+          <img
+            src="{{ item.url }}"
+            width="{{ item.width }}"
+            height="{{ item.height }}"
+            alt="Image {{ item.image_id }}"
+            loading="lazy"
+            class="gallery-img"
+          >
+        </a>
+        <span class="gallery-id">#{{ item.image_id }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty-state">No images available for this page.</p>
+{% endif %}
+
+<nav class="pagination" aria-label="Gallery pagination">
+  {% if prev_url %}
+    <a class="pagination__link pagination__link--prev" href="{{ prev_url }}">&#8592; Previous</a>
+  {% else %}
+    <span class="pagination__link pagination__link--disabled">&#8592; Previous</span>
+  {% endif %}
+
+  <span class="pagination__current">Page {{ gallery_page.page }}</span>
+
+  {% if next_url %}
+    <a class="pagination__link pagination__link--next" href="{{ next_url }}">Next &#8594;</a>
+  {% else %}
+    <span class="pagination__link pagination__link--disabled">Next &#8594;</span>
+  {% endif %}
+</nav>
+
+{% endblock %}
