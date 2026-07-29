@@ -94,16 +94,22 @@ class PicsumImageProvider:
     # ------------------------------------------------------------------
 
     def fetch_image(self, image_id: int, transform: ImageTransform) -> ImageItem:
-        """Build and return an ``ImageItem`` for *image_id*, verifying
-        upstream reachability with a HEAD request.
+        """Build and return an ``ImageItem`` for *image_id*.
+
+        The URL is constructed by the URL builder and returned directly.
+        The browser fetches the actual image bytes from picsum — the server
+        is a URL provider, not an image proxy.
+
+        ``_verify_url`` is available for explicit health checks (e.g. the
+        ``/health`` endpoint) but is intentionally not called per-image to
+        avoid unnecessary server-side round-trips.
 
         Raises:
-            UpstreamTimeoutError:     Timeout on all attempts.
-            UpstreamError:            Non-retriable HTTP error (e.g. 404).
-            UpstreamUnavailableError: Retriable error persists after all retries.
+            UpstreamTimeoutError:     (when called via ``_verify_url``)
+            UpstreamError:            (when called via ``_verify_url``)
+            UpstreamUnavailableError: (when called via ``_verify_url``)
         """
         url = self._url_builder.image_url(image_id, transform)
-        self._verify_url(url, image_id=image_id)
         size = transform.pixel_size()
         return ImageItem(
             image_id=image_id,
@@ -160,10 +166,11 @@ class PicsumImageProvider:
                     "upstream.request",
                     extra={"url": url, "attempt": attempt, "image_id": image_id},
                 )
-                response = self.session.head(
-                    url, timeout=self._timeout, allow_redirects=True
+                response = self.session.get(
+                    url, timeout=self._timeout, allow_redirects=True, stream=True
                 )
                 response.raise_for_status()
+                response.close()
                 logger.debug(
                     "upstream.response",
                     extra={

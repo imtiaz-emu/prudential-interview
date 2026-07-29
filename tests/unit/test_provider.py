@@ -28,7 +28,7 @@ def _provider_with_mock_session():
     builder = PicsumUrlBuilder(base_url='https://picsum.photos')
     p = PicsumImageProvider(url_builder=builder, _sleep=MagicMock())
     p.session = MagicMock()
-    p.session.head.return_value = _make_response(200)
+    p.session.get.return_value = _make_response(200)
     return p
 
 
