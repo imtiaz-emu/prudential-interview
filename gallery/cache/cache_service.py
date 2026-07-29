@@ -34,6 +34,13 @@ from django.core.cache import cache
 from gallery.cache.keys import make_fallback_key, make_image_key
 from gallery.domain.transformations import ImageTransform
 from gallery.errors import GalleryError, NoFallbackError, UpstreamError
+from gallery.logging.events import (
+    log_cache_fallback_hit,
+    log_cache_hit,
+    log_cache_miss,
+    log_cache_no_fallback,
+    log_cache_stored,
+)
 from gallery.types import ImageItem
 
 logger = logging.getLogger(__name__)
@@ -71,16 +78,10 @@ class CacheService:
         # 1. Primary cache hit
         cached: ImageItem | None = cache.get(primary_key)
         if cached is not None:
-            logger.debug(
-                "cache.hit",
-                extra={"key": primary_key, "image_id": image_id},
-            )
+            log_cache_hit(logger, primary_key, image_id)
             return cached
 
-        logger.debug(
-            "cache.miss",
-            extra={"key": primary_key, "image_id": image_id},
-        )
+        log_cache_miss(logger, primary_key, image_id)
 
         # 2. Cache miss — call upstream
         try:
@@ -92,11 +93,7 @@ class CacheService:
         fallback_key = make_fallback_key(image_id, transform)
         cache.set(primary_key, item)          # uses default CACHE_TTL from settings
         cache.set(fallback_key, item, timeout=None)  # persists for process lifetime
-
-        logger.debug(
-            "cache.stored",
-            extra={"key": primary_key, "image_id": image_id},
-        )
+        log_cache_stored(logger, primary_key, image_id)
         return item
 
     # ------------------------------------------------------------------
@@ -119,20 +116,10 @@ class CacheService:
         fallback: ImageItem | None = cache.get(fallback_key)
 
         if fallback is not None:
-            logger.warning(
-                "cache.fallback_hit",
-                extra={
-                    "key": fallback_key,
-                    "image_id": image_id,
-                    "upstream_error": str(upstream_exc),
-                },
-            )
+            log_cache_fallback_hit(logger, fallback_key, image_id, str(upstream_exc))
             return fallback
 
-        logger.error(
-            "cache.no_fallback",
-            extra={"key": primary_key, "image_id": image_id},
-        )
+        log_cache_no_fallback(logger, primary_key, image_id)
         raise NoFallbackError(
             f"No cached fallback available for image {image_id}.",
             image_id=image_id,

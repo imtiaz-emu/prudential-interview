@@ -207,3 +207,40 @@ UPSTREAM_RETRY_COUNT: int = _int('UPSTREAM_RETRY_COUNT', 3)
 # Base backoff in seconds between retries (doubles each attempt).
 UPSTREAM_BACKOFF_SECONDS: float = _float('UPSTREAM_BACKOFF_SECONDS', 0.5)
 
+
+# ---------------------------------------------------------------------------
+# Logging — structured JSON to stdout for container visibility
+# ---------------------------------------------------------------------------
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'structured': {
+            '()': 'gallery.logging.events.StructuredFormatter',
+        },
+        'simple': {
+            'format': '%(asctime)s %(levelname)-8s %(name)s  %(message)s',
+        },
+    },
+    'handlers': {
+        'stdout': {
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+            'formatter': 'structured',
+        },
+    },
+    'loggers': {
+        # Application loggers — DEBUG and above.
+        'gallery': {
+            'handlers': ['stdout'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['stdout'],
+        'level': 'WARNING',
+    },
+}
+

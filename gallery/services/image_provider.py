@@ -25,6 +25,12 @@ from gallery.errors import (
     UpstreamTimeoutError,
     UpstreamUnavailableError,
 )
+from gallery.logging.events import (
+    log_upstream_error,
+    log_upstream_request,
+    log_upstream_response,
+    log_upstream_retry,
+)
 from gallery.services.url_builder import PicsumUrlBuilder
 from gallery.types import ImageItem
 
@@ -150,52 +156,28 @@ class PicsumImageProvider:
         for attempt in range(self._retry_count + 1):
             if attempt > 0:
                 backoff = self._backoff * (2 ** (attempt - 1))
-                logger.debug(
-                    "upstream.retry",
-                    extra={
-                        "url": url,
-                        "attempt": attempt,
-                        "backoff_seconds": backoff,
-                        "image_id": image_id,
-                    },
-                )
+                log_upstream_retry(logger, url, attempt, backoff, image_id)
                 self._sleep(backoff)
 
             try:
-                logger.debug(
-                    "upstream.request",
-                    extra={"url": url, "attempt": attempt, "image_id": image_id},
-                )
+                log_upstream_request(logger, url, image_id, attempt)
                 response = self.session.get(
                     url, timeout=self._timeout, allow_redirects=True, stream=True
                 )
                 response.raise_for_status()
                 response.close()
-                logger.debug(
-                    "upstream.response",
-                    extra={
-                        "url": url,
-                        "status": response.status_code,
-                        "image_id": image_id,
-                    },
-                )
+                log_upstream_response(logger, url, response.status_code, image_id)
                 return  # success
 
             except requests.Timeout:
-                logger.warning(
-                    "upstream.timeout",
-                    extra={"url": url, "attempt": attempt, "image_id": image_id},
-                )
+                log_upstream_error(logger, 'upstream.timeout', url, image_id, attempt=attempt)
                 last_exc = UpstreamTimeoutError(
                     f"Request to {url} timed out (attempt {attempt + 1}).",
                     image_id=image_id,
                 )
 
             except requests.ConnectionError as exc:
-                logger.warning(
-                    "upstream.connection_error",
-                    extra={"url": url, "attempt": attempt, "image_id": image_id, "detail": str(exc)},
-                )
+                log_upstream_error(logger, 'upstream.connection_error', url, image_id, attempt=attempt, detail=str(exc))
                 last_exc = UpstreamUnavailableError(
                     f"Connection error for {url} (attempt {attempt + 1}): {exc}",
                     image_id=image_id,
@@ -203,15 +185,7 @@ class PicsumImageProvider:
 
             except requests.HTTPError as exc:
                 status = exc.response.status_code if exc.response is not None else None
-                logger.warning(
-                    "upstream.http_error",
-                    extra={
-                        "url": url,
-                        "status": status,
-                        "attempt": attempt,
-                        "image_id": image_id,
-                    },
-                )
+                log_upstream_error(logger, 'upstream.http_error', url, image_id, status=status, attempt=attempt)
                 if status is not None and status < 500:
                     # 4xx — not transient, do not retry
                     raise UpstreamError(
