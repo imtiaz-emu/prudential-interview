@@ -1,10 +1,33 @@
 # Image Gallery
 
-A Django web application that renders a configurable, paginated image gallery backed by [picsum.dev](https://picsum.dev/).
+A Django web application that renders a configurable, paginated image gallery backed by [picsum.photos](https://picsum.photos/).
 
 ---
 
-## Quick start
+## Requirements
+
+- Python 3.12+
+- Docker + Docker Compose
+
+---
+
+## Run
+
+### Docker
+
+```bash
+docker compose up
+```
+
+Open <http://localhost:8000/>. Migrations run automatically on startup.
+
+```bash
+docker compose up -d        # run in background
+docker compose logs -f      # stream logs
+docker compose down         # stop and remove
+```
+
+### Local dev server
 
 ```bash
 python -m venv venv
@@ -20,38 +43,60 @@ Open <http://localhost:8000/>.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and edit the values. All settings have safe defaults so the application runs without a `.env` file.
+Copy `.env.example` to `.env` to override defaults. All settings have safe fallback values so the app runs without a `.env` file.
 
 | Variable | Default | Description |
 |---|---|---|
-| `SECRET_KEY` | insecure dev key | Django secret key — **must** be changed in production |
+| `SECRET_KEY` | insecure dev key | Django secret key — **change in production** |
 | `DEBUG` | `true` | Set to `false` in production |
-| `ALLOWED_HOSTS` | `*` | Comma-separated list of allowed host names |
+| `ALLOWED_HOSTS` | `*` | Comma-separated allowed host names |
+| `PICSUM_BASE_URL` | `https://picsum.photos` | Upstream image provider base URL |
 | `IMAGE_DEFAULT_SIZE` | `medium` | Default image size (`small`, `medium`, `large`) |
-| `IMAGES_PER_PAGE` | `10` | Number of images shown per page by default |
-| `CACHE_TTL` | `300` | Cache time-to-live in seconds; `0` disables caching |
-| `UPSTREAM_TIMEOUT_SECONDS` | `5.0` | HTTP timeout per picsum.dev request |
+| `IMAGES_PER_PAGE` | `10` | Default images per page |
+| `CACHE_TTL` | `300` | Cache TTL in seconds |
+| `UPSTREAM_TIMEOUT_SECONDS` | `5.0` | Timeout per upstream request |
 | `UPSTREAM_RETRY_COUNT` | `3` | Max retry attempts on transient upstream errors |
-| `UPSTREAM_BACKOFF_SECONDS` | `0.5` | Base backoff in seconds between retries (doubles each attempt) |
-
-### Cache policy
-
-The application uses Django's in-memory local cache (`LocMemCache`) by default. Generated image URL payloads are cached by a deterministic key that includes all output-affecting inputs (image ID, size, grayscale, blur, and relevant config values). This prevents duplicate upstream calls for identical requests within a single process lifetime. The cache is invalidated automatically when the process restarts.
+| `UPSTREAM_BACKOFF_SECONDS` | `0.5` | Base backoff between retries (doubles each attempt) |
 
 ---
 
-## Running with Docker
+## Endpoints
 
-```bash
-docker compose up
+### `GET /` — Gallery
+
+Paginated image grid with filter controls.
+
+| Parameter | Default | Validation |
+|-----------|---------|------------|
+| `page` | `1` | ≥ 1; invalid values redirect to `?page=1` |
+| `per_page` | `10` | 1 – 50 |
+| `size` | `medium` | `small`, `medium`, `large` |
+| `grayscale` | — | `1`, `true`, `yes`, `on` |
+| `blur` | `0` | 0 – 10 |
+
+### `GET /image/<id>/` — Detail
+
+Single image with parameter display. Accepts `size`, `grayscale`, `blur`.
+
+### `GET /health/` — Health check
+
+Always HTTP 200. Returns JSON:
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-07-30T12:00:00.000Z",
+  "checks": { "cache": "ok", "upstream": "ok" }
+}
 ```
 
-The application will be available at <http://localhost:8000/>.
+`status` is `"degraded"` if any check fails.
 
 ---
 
 ## Testing
 
 ```bash
-pytest --cov=gallery --cov-report=term-missing
+pip install -r requirements-dev.txt
+pytest tests/
 ```
