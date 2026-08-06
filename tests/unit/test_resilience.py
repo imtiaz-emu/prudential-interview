@@ -38,6 +38,21 @@ def _make_response(status_code: int) -> MagicMock:
     return resp
 
 
+def _make_info_response(image_id: int = 1, width: int = 5616, height: int = 3744) -> MagicMock:
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {
+        'id': str(image_id),
+        'author': 'Test Author',
+        'width': width,
+        'height': height,
+        'url': 'https://unsplash.com/photos/test',
+        'download_url': f'https://picsum.photos/id/{image_id}/5616/3744',
+    }
+    return resp
+
+
 def _provider(retry_count=2, timeout=1.0, backoff=0.0):
     sleep_mock = MagicMock()
     builder = PicsumUrlBuilder(base_url='https://picsum.photos')
@@ -50,32 +65,55 @@ def _provider(retry_count=2, timeout=1.0, backoff=0.0):
 
 
 # ---------------------------------------------------------------------------
-# fetch_image — pure URL builder (no HTTP)
+# fetch_image — makes upstream HTTP call per image
 # ---------------------------------------------------------------------------
 
-class TestFetchImageNoHttp:
+class TestFetchImageHttp:
     def test_returns_image_item(self):
         p, _ = _provider()
+        p.session.get.return_value = _make_info_response(1, 5616, 3744)
         item = p.fetch_image(1, ImageTransform('medium'))
         assert isinstance(item, ImageItem)
         assert item.image_id == 1
 
-    def test_no_http_call_made(self):
+    def test_makes_http_call(self):
         p, _ = _provider()
+        p.session.get.return_value = _make_info_response()
         p.fetch_image(42, ImageTransform('medium'))
-        p.session.get.assert_not_called()
+        p.session.get.assert_called_once()
 
-    def test_dimensions_from_transform(self):
+    def test_calls_info_endpoint(self):
         p, _ = _provider()
+        p.session.get.return_value = _make_info_response(42)
+        p.fetch_image(42, ImageTransform('medium'))
+        call_url = p.session.get.call_args[0][0]
+        assert '/id/42/info' in call_url
+
+    def test_dimensions_from_info_response(self):
+        p, _ = _provider()
+        p.session.get.return_value = _make_info_response(1, 1920, 1080)
         item = p.fetch_image(1, ImageTransform('small'))
-        assert item.width == 200
-        assert item.height == 200
+        assert item.width == 1920
+        assert item.height == 1080
 
     def test_transform_preserved(self):
         p, _ = _provider()
+        p.session.get.return_value = _make_info_response()
         t = ImageTransform('large', grayscale=True, blur=4)
         item = p.fetch_image(1, t)
         assert item.transform == t
+
+    def test_timeout_raises_upstream_timeout_error(self):
+        p, _ = _provider(retry_count=0)
+        p.session.get.side_effect = requests.Timeout()
+        with pytest.raises(UpstreamTimeoutError):
+            p.fetch_image(1, ImageTransform('medium'))
+
+    def test_upstream_failure_raises_upstream_unavailable(self):
+        p, _ = _provider(retry_count=0)
+        p.session.get.side_effect = requests.ConnectionError()
+        with pytest.raises(UpstreamUnavailableError):
+            p.fetch_image(1, ImageTransform('medium'))
 
 
 # ---------------------------------------------------------------------------

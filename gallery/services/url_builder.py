@@ -63,3 +63,7 @@ class PicsumUrlBuilder:
             url += '?' + '&'.join(query_parts)
 
         return url
+
+    def info_url(self, image_id: int) -> str:
+        """Return the picsum info endpoint URL for *image_id*."""
+        return f"{self._base_url}/id/{image_id}/info"

@@ -23,12 +23,27 @@ def _make_response(status_code: int = 200) -> MagicMock:
     return resp
 
 
+def _make_info_response(image_id: int = 1, width: int = 5616, height: int = 3744) -> MagicMock:
+    resp = MagicMock(spec=requests.Response)
+    resp.status_code = 200
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {
+        'id': str(image_id),
+        'author': 'Test Author',
+        'width': width,
+        'height': height,
+        'url': 'https://unsplash.com/photos/test',
+        'download_url': f'https://picsum.photos/id/{image_id}/5616/3744',
+    }
+    return resp
+
+
 def _provider_with_mock_session():
-    """Return a provider whose session always responds 200."""
+    """Return a provider whose session always responds with a valid info response."""
     builder = PicsumUrlBuilder(base_url='https://picsum.photos')
     p = PicsumImageProvider(url_builder=builder, _sleep=MagicMock())
     p.session = MagicMock()
-    p.session.get.return_value = _make_response(200)
+    p.session.get.return_value = _make_info_response()
     return p
 
 
@@ -123,10 +138,11 @@ class TestPicsumImageProvider:
         item = self.provider.fetch_image(42, ImageTransform('medium'))
         assert '/id/42/' in item.url
 
-    def test_fetch_image_dimensions_match_transform(self):
+    def test_fetch_image_dimensions_from_provider(self):
+        # width/height come from the info endpoint, not from the transform size
         item = self.provider.fetch_image(1, ImageTransform('small'))
-        assert item.width == 200
-        assert item.height == 200
+        assert item.width == 5616
+        assert item.height == 3744
 
     def test_fetch_image_transform_preserved(self):
         t = ImageTransform('large', grayscale=True, blur=4)

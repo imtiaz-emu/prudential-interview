@@ -100,28 +100,25 @@ class PicsumImageProvider:
     # ------------------------------------------------------------------
 
     def fetch_image(self, image_id: int, transform: ImageTransform) -> ImageItem:
-        """Build and return an ``ImageItem`` for *image_id*.
+        """Fetch image metadata from upstream and return an ``ImageItem``.
 
-        The URL is constructed by the URL builder and returned directly.
-        The browser fetches the actual image bytes from picsum — the server
-        is a URL provider, not an image proxy.
-
-        ``_verify_url`` is available for explicit health checks (e.g. the
-        ``/health`` endpoint) but is intentionally not called per-image to
-        avoid unnecessary server-side round-trips.
+        Calls the picsum info endpoint to retrieve the image's source
+        dimensions, then builds the display URL with the requested transform.
 
         Raises:
-            UpstreamTimeoutError:     (when called via ``_verify_url``)
-            UpstreamError:            (when called via ``_verify_url``)
-            UpstreamUnavailableError: (when called via ``_verify_url``)
+            UpstreamTimeoutError:     All attempts timed out.
+            UpstreamError:            Non-retriable HTTP error (4xx).
+            UpstreamUnavailableError: Retriable error persisted through all retries.
         """
+        info_url = self._url_builder.info_url(image_id)
+        response = self._get(info_url, image_id=image_id)
+        data = response.json()
         url = self._url_builder.image_url(image_id, transform)
-        size = transform.pixel_size()
         return ImageItem(
             image_id=image_id,
             url=url,
-            width=size,
-            height=size,
+            width=data['width'],
+            height=data['height'],
             transform=transform,
         )
 
@@ -135,16 +132,24 @@ class PicsumImageProvider:
     # Resilience internals
     # ------------------------------------------------------------------
 
-    def _verify_url(self, url: str, *, image_id: int | None = None) -> None:
-        """Issue a HEAD request to *url* with timeout and retry policy.
+    def _get(
+        self,
+        url: str,
+        *,
+        image_id: int | None = None,
+        stream: bool = False,
+    ) -> requests.Response:
+        """GET *url* with timeout and retry policy. Returns the response.
 
         - Retries on: timeout, connection error, 5xx responses.
         - Does NOT retry on: 4xx responses (client errors are not transient).
         - Backoff doubles each attempt: base, base*2, base*4, …
 
         Args:
-            url:      Fully qualified upstream URL to verify.
+            url:      Fully qualified URL to request.
             image_id: For error attribution in logs and exceptions.
+            stream:   Passed to ``requests.Session.get``; use ``True`` to
+                      avoid downloading the full body (e.g. health checks).
 
         Raises:
             UpstreamTimeoutError:     All attempts timed out.
@@ -162,12 +167,11 @@ class PicsumImageProvider:
             try:
                 log_upstream_request(logger, url, image_id, attempt)
                 response = self.session.get(
-                    url, timeout=self._timeout, allow_redirects=True, stream=True
+                    url, timeout=self._timeout, allow_redirects=True, stream=stream
                 )
                 response.raise_for_status()
-                response.close()
                 log_upstream_response(logger, url, response.status_code, image_id)
-                return  # success
+                return response
 
             except requests.Timeout:
                 log_upstream_error(logger, 'upstream.timeout', url, image_id, attempt=attempt)
@@ -187,7 +191,6 @@ class PicsumImageProvider:
                 status = exc.response.status_code if exc.response is not None else None
                 log_upstream_error(logger, 'upstream.http_error', url, image_id, status=status, attempt=attempt)
                 if status is not None and status < 500:
-                    # 4xx — not transient, do not retry
                     raise UpstreamError(
                         f"Upstream returned {status} for {url}.",
                         status_code=status,
@@ -199,7 +202,6 @@ class PicsumImageProvider:
                     image_id=image_id,
                 )
 
-        # All attempts exhausted
         if isinstance(last_exc, UpstreamTimeoutError):
             raise UpstreamTimeoutError(
                 f"All {self._retry_count + 1} attempts timed out for {url}.",
@@ -209,3 +211,8 @@ class PicsumImageProvider:
             f"Upstream unavailable after {self._retry_count + 1} attempts for {url}.",
             image_id=image_id,
         )
+
+    def _verify_url(self, url: str, *, image_id: int | None = None) -> None:
+        """Health check: GET *url* with resilience, close response immediately."""
+        response = self._get(url, image_id=image_id, stream=True)
+        response.close()
