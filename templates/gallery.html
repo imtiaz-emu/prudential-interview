@@ -36,6 +36,11 @@
 </div>
 
 {% if gallery_page.items %}
+  <div id="gallery-loading" class="gallery-loading" aria-live="polite" role="status">
+    <span class="gallery-loading__spinner" aria-hidden="true"></span>
+    <span class="gallery-loading__text">Loading images...</span>
+  </div>
+
   <div class="gallery-grid" id="gallery-grid">
     {% for item in gallery_page.items %}
       <div class="gallery-card">
@@ -45,7 +50,7 @@
             width="{{ item.width }}"
             height="{{ item.height }}"
             alt="Image {{ item.image_id }}"
-            loading="lazy"
+            loading="eager"
             class="gallery-img"
           >
         </a>
@@ -73,4 +78,8 @@
   {% endif %}
 </nav>
 
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'js/gallery.js' %}"></script>
 {% endblock %}
